@@ -1,0 +1,28 @@
+{
+  "name": "opencode-sync-memory",
+  "version": "0.1.0",
+  "description": "Persistent memory for opencode, synced across machines via a private GitHub repo",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": ["dist", "README.md", "LICENSE"],
+  "keywords": ["opencode", "plugin", "memory", "sync"],
+  "license": "MIT",
+  "dependencies": {
+    "@opencode-ai/plugin": "^1.15.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0",
+    "@types/node": "^20.0.0"
+  },
+  "scripts": {
+    "build": "tsc",
+    "prepublishOnly": "npm run build"
+  }
+}
