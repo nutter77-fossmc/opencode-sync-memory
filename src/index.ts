@@ -23,6 +23,7 @@ import { ensureGhAuthenticated, createPrivateRepo, getSuggestedRepoName } from "
 import { getSystemContext } from "./hooks/system";
 import { onSessionCreated, onSessionIdle } from "./hooks/capture";
 import { onToolExecuted } from "./hooks/guard";
+import { flushCaptureBuffer } from "./hooks/extract";
 import { appendToDailyNote } from "./tiers/daily";
 
 export const SyncMemoryPlugin: Plugin = async (ctx) => {
@@ -115,7 +116,8 @@ export const SyncMemoryPlugin: Plugin = async (ctx) => {
         description:
           "Save a fact, decision, preference, or any knowledge to persistent memory. " +
           "The memory is stored locally and synced to your private GitHub repo. " +
-          "Use this when you discover something noteworthy about the project, user preferences, architecture decisions, etc.",
+          "Use this when you discover something noteworthy about the project, user preferences, architecture decisions, etc. " +
+          "Saves to: preferences, repos, technical, people, workflows, snippets, or notes.",
         args: {
           title: tool.schema
             .string()
@@ -388,6 +390,7 @@ export const SyncMemoryPlugin: Plugin = async (ctx) => {
       if (event.type === "session.idle") {
         const props = event as { type: "session.idle"; properties: { sessionID: string } };
         await onSessionIdle($, props.properties.sessionID);
+        await flushCaptureBuffer($, props.properties.sessionID, config.remote.url);
       }
     },
 

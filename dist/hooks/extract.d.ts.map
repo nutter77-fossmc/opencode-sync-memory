@@ -1,0 +1,1 @@
+{"version":3,"file":"extract.d.ts","sourceRoot":"","sources":["../../src/hooks/extract.ts"],"names":[],"mappings":"AAAA,OAAO,KAAK,EAAE,KAAK,EAAE,MAAM,UAAU,CAAC;AAQtC,wBAAgB,cAAc,CAAC,OAAO,EAAE,MAAM,GAAG,IAAI,CAKpD;AAED,wBAAsB,kBAAkB,CACtC,CAAC,EAAE,KAAK,EACR,SAAS,EAAE,MAAM,EACjB,SAAS,CAAC,EAAE,MAAM,GACjB,OAAO,CAAC,IAAI,CAAC,CAcf"}

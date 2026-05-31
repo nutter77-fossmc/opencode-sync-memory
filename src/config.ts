@@ -1,3 +1,8 @@
+import { homedir } from "os";
+import { join } from "path";
+import { mkdir, readFile, writeFile, exists } from "./fs";
+import { normalizeGitUrl } from "./repo";
+
 export interface SyncMemoryConfig {
   remote: {
     url: string;
@@ -57,15 +62,18 @@ const CONFIG_PATH = join(
   "opencode-sync-memory.jsonc",
 );
 
-import { homedir } from "os";
-import { join } from "path";
-import { mkdir, readFile, writeFile, exists } from "./fs";
-
 export async function loadConfig(): Promise<SyncMemoryConfig> {
   try {
     const content = await readFile(CONFIG_PATH, "utf-8");
-    const parsed = JSON.parse(stripJsonc(content));
-    return { ...DEFAULT_CONFIG, ...parsed };
+    const parsed = JSON.parse(stripJsonc(content)) as Partial<SyncMemoryConfig>;
+    const config = { ...DEFAULT_CONFIG, ...parsed };
+
+    // Normalize any malformed remote URL
+    if (config.remote.url) {
+      config.remote.url = normalizeGitUrl(config.remote.url);
+    }
+
+    return config;
   } catch {
     return { ...DEFAULT_CONFIG };
   }

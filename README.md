@@ -22,60 +22,52 @@ Save facts, decisions, preferences, and project knowledge once — access them f
 **Three-tier memory:**
 - **Active Context**: Top 5 most relevant memories injected into each session's system prompt (compact 1-3 line summaries)
 - **Daily Notes**: Auto-created per session, captures what you worked on and decisions made
-- **Long-term Knowledge**: Full detail preserved, retrievable on demand via `memory_search`
+- **Long-term Knowledge**: Full detail preserved, retrievable on demand via memory search tools
 
-## Setup
+## Quick Start
 
 ### 1. Install
 
-Add to your `opencode.json`:
-
-```json
+```jsonc
+// ~/.config/opencode/opencode.json
 {
   "plugin": ["opencode-sync-memory"]
 }
 ```
 
-Or install locally:
+Then run `npm install` in `~/.config/opencode/` or install globally:
 
 ```bash
-mkdir -p ~/.config/opencode/plugins
-bun add -g opencode-sync-memory
+npm install -g opencode-sync-memory
 ```
 
 ### 2. Authenticate with GitHub
-
-The plugin uses the [GitHub CLI](https://cli.github.com/) for authentication and repo creation:
 
 ```bash
 gh auth login
 ```
 
-### 3. Configure remote (optional — the plugin can auto-create)
+### 3. Configure (optional)
 
 ```jsonc
 // ~/.config/opencode/opencode-sync-memory.jsonc
 {
   "remote": {
-    "url": "git@github.com:yourname/opencode-memory.git",
+    "url": "https://github.com/yourname/opencode-memory.git",
     "branch": "main",
-    "autoCreate": true     // Creates a private repo via gh if url is empty
+    "autoCreate": true
   }
 }
 ```
 
-If `autoCreate` is true and no URL is configured, the plugin will:
-1. Check `gh auth status`
-2. Create `gh repo create <user>/opencode-memory --private`
-3. Set it as the remote
-4. Push all memories on save
+If `autoCreate` is true and no URL is set, the plugin auto-creates a private repo on first run.
 
 ## Tools
 
 | Tool | Purpose |
 |---|---|
-| `memory_save` | Save a fact/decision/knowledge + auto commit + push to GitHub |
-| `memory_search` | Search memories + daily notes + past sessions (unified) |
+| `memory_save` | Save a fact/decision + auto commit + push to GitHub |
+| `memory_search` | Search memories + daily notes + past sessions |
 | `memory_read` | Read full content of a specific memory |
 | `memory_list` | Browse memories by category |
 | `memory_update` | Update a memory's content/title/tags/importance |
@@ -83,45 +75,24 @@ If `autoCreate` is true and no URL is configured, the plugin will:
 | `memory_sync` | Manually trigger git pull + push |
 | `memory_status` | Show store stats, sync health, remote info |
 
+## Automatic Features
+
+- **Daily notes**: Each session auto-creates a timestamped note
+- **Memory injection**: Top 5 most relevant memories loaded into every session's system prompt
+- **Git sync**: Every memory save auto-commits and pushes
+- **Tool nudges**: Agent reminded to save memories during work
+- **URL validation**: Malformed remote URLs auto-fixed on load
+
 ## Cross-Everything
 
-- **Cross-session**: Indexes past opencode sessions — search conversations alongside memories
-- **Cross-project**: Memories tagged with project name from git worktree. Search scoped to current project + global by default
-- **Cross-machine**: Git sync via private repo. Each edit tracks which machine (`created_by`, `updated_by`)
+- **Cross-session**: Indexes past opencode sessions
+- **Cross-project**: Memories tagged with project name from git worktree
+- **Cross-machine**: Git sync via private repo. Each edit tracks which machine
 - **Cross-content**: Single `memory_search` queries memories + daily notes + session history
 
-## Conflict Resolution
+## Setup for Multiple Machines
 
-When two machines edit the same memory simultaneously, the plugin:
-1. Creates fork files: `name.local.<hostname>.<timestamp>.md` and `name.remote.<timestamp>.md`
-2. Adds `conflicts_with` cross-reference links in both files' frontmatter
-3. Replaces the original with a summary referencing both forks
-4. Commits and pushes the resolution
-
-## Configuration
-
-```jsonc
-{
-  "remote": {
-    "url": "git@github.com:user/opencode-memory.git",
-    "branch": "main",
-    "autoCreate": true
-  },
-  "injection": {
-    "enabled": true,
-    "maxMemories": 5,
-    "maxLinesPerMemory": 3
-  },
-  "dailyNotes": {
-    "enabled": true,
-    "autoCreate": true
-  },
-  "sessionSearch": {
-    "enabled": true,
-    "maxResults": 10
-  }
-}
-```
+See [opencode-config-repo](https://github.com/nutter77-fossmc/opencode-config-repo)
 
 ## License
 

@@ -1,7 +1,7 @@
 import type { Shell } from "../types";
 
 let toolCallCount = 0;
-const NUDGE_INTERVAL = 8;
+const NUDGE_INTERVAL = 6;
 
 export async function onToolExecuted(
   $: Shell,
@@ -13,7 +13,7 @@ export async function onToolExecuted(
   if (saveTriggers.includes(toolName)) {
     if (toolCallCount >= NUDGE_INTERVAL) {
       toolCallCount = 0;
-      return `Consider saving any important findings to memory using memory_save.`;
+      return `Auto-save suggestion: Consider saving key findings to memory with memory_save (category, title, content). Save preferences, decisions, architecture facts, and useful commands.`;
     }
   }
 

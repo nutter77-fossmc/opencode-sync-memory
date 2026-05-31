@@ -1,6 +1,6 @@
 {
   "name": "opencode-sync-memory",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Persistent memory for opencode, synced across machines via a private GitHub repo",
   "type": "module",
   "main": "dist/index.js",
