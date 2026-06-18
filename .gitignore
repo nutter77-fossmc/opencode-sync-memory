@@ -1,3 +1,12 @@
 node_modules/
 .DS_Store
 *.tsbuildinfo
+dist/
+.env
+.env.local
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+.opencode-memory/
+index.json

@@ -1,6 +1,6 @@
 {
   "name": "opencode-sync-memory",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Persistent memory for opencode, synced across machines via a private GitHub repo",
   "type": "module",
   "main": "dist/index.js",
@@ -12,7 +12,7 @@
     }
   },
   "files": ["dist", "README.md", "LICENSE"],
-  "keywords": ["opencode", "plugin", "memory", "sync"],
+  "keywords": ["opencode", "plugin", "memory", "sync", "encryption", "ai"],
   "license": "MIT",
   "dependencies": {
     "@opencode-ai/plugin": "^1.15.0"
@@ -23,6 +23,10 @@
   },
   "scripts": {
     "build": "tsc",
-    "prepublishOnly": "npm run build"
+    "test": "node --test src/__tests__/*.test.ts",
+    "test:watch": "node --test --watch src/__tests__/*.test.ts",
+    "lint": "tsc --noEmit",
+    "prepublishOnly": "npm run build",
+    "pretest": "npm run build"
   }
 }

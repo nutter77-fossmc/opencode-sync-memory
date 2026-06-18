@@ -23,8 +23,10 @@ import { ensureGhAuthenticated, createPrivateRepo, getSuggestedRepoName } from "
 import { getSystemContext } from "./hooks/system";
 import { onSessionCreated, onSessionIdle } from "./hooks/capture";
 import { onToolExecuted } from "./hooks/guard";
-import { flushCaptureBuffer } from "./hooks/extract";
+import { flushCaptureBuffer, extractFacts, extractFromSummary, saveExtractedMemory } from "./hooks/extract";
 import { appendToDailyNote } from "./tiers/daily";
+import { manualConsolidate, consolidateMemories } from "./consolidation";
+import { setEncryptionKey, generateEncryptionKey } from "./crypto";
 
 export const SyncMemoryPlugin: Plugin = async (ctx) => {
   const $ = ctx.$ as unknown as Shell;
@@ -380,6 +382,196 @@ export const SyncMemoryPlugin: Plugin = async (ctx) => {
           return out;
         },
       }),
+
+      memory_diff: tool({
+        description: "Show what changed in a memory over time. Useful for tracking evolving decisions.",
+        args: {
+          path: tool.schema.string().describe("Path to the memory file"),
+        },
+        async execute(args) {
+          const content = await readMemory(args.path);
+          if (!content) return `Memory not found: ${args.path}`;
+
+          let output = `## Memory History: ${args.path}\n\n`;
+          output += `**Created**: ${content.fm.created || "Unknown"}\n`;
+          output += `**Last Modified**: ${content.fm.updated || "Unknown"}\n`;
+          output += `**Created By**: ${content.fm.created_by || "Unknown"}\n`;
+          output += `**Updated By**: ${content.fm.updated_by || "Unknown"}\n\n`;
+          output += `### Current Content\n\n`;
+          output += content.body.slice(0, 500);
+          if (content.body.length > 500) {
+            output += "\n\n...";
+          }
+
+          return output;
+        },
+      }),
+
+      memory_export: tool({
+        description: "Export a category as JSON/markdown for backup or transfer.",
+        args: {
+          category: tool.schema.string().describe("Category to export"),
+          format: tool.schema.string().optional().default("json").describe("Export format: json or markdown"),
+        },
+        async execute(args) {
+          const { readdirSync } = await import("fs");
+          const { join } = await import("path");
+          
+          const categoryDir = join(MEMORIES_DIR, args.category);
+          const memories: Array<{
+            path: string;
+            title: string;
+            content: string;
+            tags: string[];
+            importance: string;
+            created: string;
+            updated: string;
+          }> = [];
+
+          try {
+            const files = readdirSync(categoryDir);
+            for (const file of files) {
+              if (!file.endsWith(".md")) continue;
+              
+              const fullPath = join(categoryDir, file);
+              const content = await readFile(fullPath, "utf-8");
+              const { fm, body } = parseFrontmatter(content);
+              
+              memories.push({
+                path: `${args.category}/${file}`,
+                title: (fm.title as string) || file.replace(/\.md$/, ""),
+                content: body,
+                tags: (fm.tags as string[]) || [],
+                importance: (fm.importance as string) || "medium",
+                created: (fm.created as string) || "",
+                updated: (fm.updated as string) || "",
+              });
+            }
+          } catch {
+            return `Category "${args.category}" not found or empty.`;
+          }
+
+          if (args.format === "json") {
+            return JSON.stringify(memories, null, 2);
+          }
+
+          // Markdown format
+          let output = `# Export: ${args.category}\n\n`;
+          output += `Exported: ${new Date().toISOString()}\n\n`;
+          for (const mem of memories) {
+            output += `## ${mem.title}\n\n`;
+            output += `**Tags**: ${mem.tags.join(", ")}\n`;
+            output += `**Importance**: ${mem.importance}\n`;
+            output += `**Created**: ${mem.created}\n\n`;
+            output += mem.content + "\n\n---\n\n";
+          }
+
+          return output;
+        },
+      }),
+
+      memory_import: tool({
+        description: "Import memories from JSON/markdown for onboarding or backup.",
+        args: {
+          data: tool.schema.string().describe("Memory data to import"),
+          format: tool.schema.string().optional().default("json").describe("Import format: json or markdown"),
+          category: tool.schema.string().optional().default("notes").describe("Category to import into"),
+        },
+        async execute(args) {
+          await ensureInitialized();
+          
+          let memories: Array<{
+            title: string;
+            content: string;
+            tags: string[];
+            importance: string;
+          }> = [];
+
+          if (args.format === "json") {
+            try {
+              memories = JSON.parse(args.data);
+            } catch {
+              return "Invalid JSON format.";
+            }
+          } else {
+            // Parse markdown format
+            const lines = args.data.split("\n");
+            let currentMemory: { title: string; content: string; tags: string[]; importance: string } | null = null;
+            
+            for (const line of lines) {
+              if (line.startsWith("## ")) {
+                if (currentMemory) {
+                  memories.push(currentMemory);
+                }
+                currentMemory = {
+                  title: line.slice(3).trim(),
+                  content: "",
+                  tags: [],
+                  importance: "medium",
+                };
+              } else if (currentMemory) {
+                if (line.startsWith("**Tags**: ")) {
+                  currentMemory.tags = line.slice(10).split(",").map(t => t.trim());
+                } else if (line.startsWith("**Importance**: ")) {
+                  currentMemory.importance = line.slice(16).trim();
+                } else if (line !== "---" && line.trim()) {
+                  currentMemory.content += line + "\n";
+                }
+              }
+            }
+            
+            if (currentMemory) {
+              memories.push(currentMemory);
+            }
+          }
+
+          let imported = 0;
+          for (const mem of memories) {
+            try {
+              await saveMemory(args.category, mem.title, mem.content, {
+                tags: mem.tags.join(", "),
+                importance: mem.importance,
+                source: "import",
+              });
+              imported++;
+            } catch {
+              // Skip failed imports
+            }
+          }
+
+          return `Imported ${imported} of ${memories.length} memories.`;
+        },
+      }),
+
+      memory_consolidate: tool({
+        description: "Manually consolidate memories: merge duplicates and archive stale entries.",
+        args: {},
+        async execute() {
+          await ensureInitialized();
+          const result = await manualConsolidate();
+          
+          if (config.remote.url) {
+            await commitAll($, `memory consolidation (from ${hostname})`);
+            await rebasePull($);
+            await push($);
+          }
+          
+          return result;
+        },
+      }),
+
+      memory_encrypt: tool({
+        description: "Enable encryption for all memories. Requires setting an encryption key.",
+        args: {
+          key: tool.schema.string().optional().describe("Encryption key (if not set, generates a new one)"),
+        },
+        async execute(args) {
+          const key = args.key || generateEncryptionKey();
+          setEncryptionKey(key);
+          
+          return `Encryption enabled. Key: ${key}\n\nIMPORTANT: Save this key securely! You'll need it to decrypt memories on other machines.\n\nSet it on other machines using: OPENCODE_MEMORY_ENCRYPTION_KEY=${key}`;
+        },
+      }),
     },
 
     event: async ({ event }) => {
@@ -401,7 +593,19 @@ export const SyncMemoryPlugin: Plugin = async (ctx) => {
       }
     },
 
-    "tool.execute.after": async (input, _output) => {
+    // NEW: Hook into assistant messages to extract memories
+    "chat.message": async ({}, { message }) => {
+      if (message.role === "assistant") {
+        const project = ctx.worktree?.split("/").pop();
+        const extracted = extractFacts(message.content);
+        for (const memory of extracted) {
+          await saveExtractedMemory($, memory, project);
+        }
+      }
+    },
+
+    // NEW: Hook into tool execution for extraction
+    "tool.execute.after": async (input, output) => {
       const nudge = await onToolExecuted($, input.tool);
       if (nudge) {
         await ctx.client.app.log({
@@ -411,6 +615,18 @@ export const SyncMemoryPlugin: Plugin = async (ctx) => {
             message: nudge,
           },
         });
+      }
+
+      // Extract from compaction/summary tools
+      if (input.tool === "compact" || input.tool === "summarize") {
+        if (output && typeof output === "object" && "text" in output) {
+          const summary = (output as { text: string }).text;
+          const project = ctx.worktree?.split("/").pop();
+          const extracted = extractFromSummary(summary);
+          for (const memory of extracted) {
+            await saveExtractedMemory($, memory, project);
+          }
+        }
       }
     },
   };

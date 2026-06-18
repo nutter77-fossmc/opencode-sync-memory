@@ -3,6 +3,7 @@ import { MEMORIES_DIR } from "./paths";
 import { readFile } from "./fs";
 import { parseFrontmatter } from "./frontmatter";
 import { searchSessions } from "./session";
+import { searchIndex, loadIndex } from "./index-db";
 
 export interface SearchResult {
   path: string;
@@ -23,9 +24,50 @@ export async function searchMemories(
     limit?: number;
   },
 ): Promise<SearchResult[]> {
-  const terms = query.toLowerCase().split(/\s+/).filter(Boolean);
-  if (terms.length === 0) return [];
   const limit = options?.limit || 20;
+  
+  // Try index-based search first (faster)
+  if (query.trim()) {
+    try {
+      const indexedResults = await searchIndex(query, {
+        category: options?.category,
+        limit,
+      });
+      
+      if (indexedResults.length > 0) {
+        return indexedResults.map(memory => ({
+          path: memory.path,
+          title: memory.title,
+          preview: memory.content.slice(0, 200) || "No preview available",
+          category: memory.type,
+          project: memory.project,
+          source: memory.type === "notes" ? "note" : "memory",
+          score: memory.confidence * 10, // Convert 0-1 to 0-10 scale
+          updated: memory.modified,
+        }));
+      }
+    } catch {
+      // Fall back to grep-based search
+    }
+  }
+  
+  // Fallback: grep-based search
+  const terms = query.toLowerCase().split(/\s+/).filter(Boolean);
+  if (terms.length === 0) {
+    // List all memories if no query
+    const idx = await loadIndex();
+    return idx.memories.slice(0, limit).map(memory => ({
+      path: memory.path,
+      title: memory.title,
+      preview: memory.content.slice(0, 200) || "No preview available",
+      category: memory.type,
+      project: memory.project,
+      source: memory.type === "notes" ? "note" : "memory",
+      score: 0.5,
+      updated: memory.modified,
+    }));
+  }
+  
   const results: SearchResult[] = [];
 
   let searchDir = MEMORIES_DIR;
@@ -93,6 +135,11 @@ function scoreContent(
     if (text.includes(term)) score += 2;
     if (title.toLowerCase().includes(term)) score += 4;
   }
+
+  // Recency bonus
+  const age = Date.now() - new Date().getTime();
+  const daysSinceCreation = age / (1000 * 60 * 60 * 24);
+  score += Math.max(0, 5 - daysSinceCreation);
 
   return score;
 }

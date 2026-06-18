@@ -1,99 +1,295 @@
 # opencode-sync-memory
 
-Persistent memory for [opencode](https://opencode.ai), synced across machines via a private GitHub repo.
+A powerful OpenCode plugin that provides persistent memory synced across machines via a private GitHub repo. **Now with automatic memory extraction, encryption, and smart consolidation!**
 
-Save facts, decisions, preferences, and project knowledge once — access them from any machine.
+## Features
 
-## How It Works
+### Core Features
+- **Automatic Memory Extraction** - Extracts key facts, decisions, and preferences from conversations
+- **Cross-Machine Sync** - GitHub-based synchronization for multi-device workflows
+- **Structured Memory Types** - Preferences, decisions, facts, errors, and people
+- **Smart Search** - Index-based search with relevance scoring
 
+### New in v0.3.0
+- **Full Encryption** - AES-256-GCM encryption for all memories
+- **Memory Consolidation** - Automatic deduplication and stale memory archiving
+- **New Tools** - `memory_diff`, `memory_export`, `memory_import`, `memory_consolidate`, `memory_encrypt`
+- **Auto-Extraction** - Hooks into OpenCode events to extract memories in real-time
+- **Index-Based Search** - Fast JSON index for instant memory lookup
+
+## Installation
+
+```bash
+npm install opencode-sync-memory
 ```
-~/.opencode-memory/         ← git repo (synced to GitHub)
-  .git/
-  memories/
-    preferences/*.md         ← User preferences, coding style
-    repos/*.md               ← Per-repo knowledge, architecture
-    technical/*.md           ← Language/framework specifics
-    people/*.md              ← Team info, responsibilities
-    workflows/*.md           ← Build/deploy/CI patterns
-    snippets/*.md            ← Reusable code patterns
-    notes/YYYY-MM-DD.md      ← Daily session notes (auto-captured)
-```
-
-**Three-tier memory:**
-- **Active Context**: Top 5 most relevant memories injected into each session's system prompt (compact 1-3 line summaries)
-- **Daily Notes**: Auto-created per session, captures what you worked on and decisions made
-- **Long-term Knowledge**: Full detail preserved, retrievable on demand via memory search tools
 
 ## Quick Start
 
-### 1. Install
+1. **Enable the plugin** in your OpenCode config:
 
-```jsonc
-// ~/.config/opencode/opencode.json
+```json
 {
-  "plugin": ["opencode-sync-memory"]
+  "plugins": ["opencode-sync-memory"]
 }
 ```
 
-Then run `npm install` in `~/.config/opencode/` or install globally:
+2. **Initialize memory store** (first time):
 
-```bash
-npm install -g opencode-sync-memory
+```
+/memory_save title="My first memory" content="This plugin is awesome!"
 ```
 
-### 2. Authenticate with GitHub
+3. **Sync across machines**:
 
-```bash
-gh auth login
+```
+/memory_sync
 ```
 
-### 3. Configure (optional)
+## Usage
+
+### Manual Memory Operations
+
+```
+# Save a memory
+/memory_save title="React Preference" content="I prefer React over Vue for frontend projects" category="preferences" tags="react,frontend" importance="high"
+
+# Search memories
+/memory_search query="react"
+
+# Read a specific memory
+/memory_read path="preferences/react-preference.md"
+
+# List all memories
+/memory_list category="technical"
+
+# Update a memory
+/memory_update path="preferences/react-preference.md" content="Updated preference" importance="low"
+
+# Remove a memory (archived)
+/memory_forget path="preferences/react-preference.md" reason="No longer relevant"
+
+# View status
+/memory_status
+```
+
+### New Tools (v0.3.0)
+
+```
+# View memory history
+/memory_diff path="technical/architecture.md"
+
+# Export a category
+/memory_export category="technical" format="json"
+
+# Import memories
+/memory_import data="[{"title":"Imported Memory","content":"..."}]" format="json"
+
+# Consolidate duplicates and archive stale entries
+/memory_consolidate
+
+# Enable encryption
+/memory_encrypt key="your-secret-key"
+```
+
+### Automatic Memory Extraction
+
+The plugin automatically extracts memories from:
+
+1. **Assistant messages** - Preferences, decisions, and facts are extracted in real-time
+2. **Compaction summaries** - Architecture decisions and key facts are captured for free
+3. **Tool executions** - Working patterns and solutions are saved
+
+### Memory Types
+
+- **preferences** - Coding style, tools, defaults
+- **technical** - Architecture decisions, project facts
+- **errors** - Error patterns and solutions
+- **people** - Team info, responsibilities
+- **notes** - Daily notes and session logs
+
+### Encryption
+
+Enable encryption to protect sensitive memories:
+
+```bash
+# Generate a key
+/memory_encrypt
+
+# Or use your own key
+/memory_encrypt key="my-secret-key-123"
+```
+
+Set the key on other machines:
+
+```bash
+export OPENCODE_MEMORY_ENCRYPTION_KEY="your-key-here"
+```
+
+### Consolidation
+
+Run consolidation to merge duplicates and archive stale entries:
+
+```
+/memory_consolidate
+```
+
+This will:
+- Find and merge duplicate memories
+- Archive memories older than 30 days
+- Clean up the memory store
+
+## Configuration
+
+### Global Config
+
+Location: `~/.config/opencode/opencode-sync-memory.jsonc`
 
 ```jsonc
-// ~/.config/opencode/opencode-sync-memory.jsonc
 {
+  // GitHub sync settings
   "remote": {
-    "url": "https://github.com/yourname/opencode-memory.git",
+    "url": "git@github.com:user/opencode-memory.git",
     "branch": "main",
     "autoCreate": true
+  },
+  
+  // Memory categories
+  "categories": ["preferences", "repos", "technical", "people", "workflows", "snippets", "notes"],
+  
+  // System prompt injection
+  "injection": {
+    "enabled": true,
+    "maxMemories": 5,
+    "maxLinesPerMemory": 3
+  },
+  
+  // Daily notes
+  "dailyNotes": {
+    "enabled": true,
+    "autoCreate": true
+  },
+  
+  // Session search
+  "sessionSearch": {
+    "enabled": true,
+    "maxResults": 10
   }
 }
 ```
 
-If `autoCreate` is true and no URL is set, the plugin auto-creates a private repo on first run.
+### Per-Project Config
 
-## Tools
+Create `.opencode-memory.json` in your project root:
 
-| Tool | Purpose |
-|---|---|
-| `memory_save` | Save a fact/decision + auto commit + push to GitHub |
-| `memory_search` | Search memories + daily notes + past sessions |
-| `memory_read` | Read full content of a specific memory |
-| `memory_list` | Browse memories by category |
-| `memory_update` | Update a memory's content/title/tags/importance |
-| `memory_forget` | Remove a memory (archived to `.archive/`) |
-| `memory_sync` | Manually trigger git pull + push |
-| `memory_status` | Show store stats, sync health, remote info |
+```json
+{
+  "categories": ["project-specific", "team-notes"],
+  "injection": {
+    "maxMemories": 10
+  }
+}
+```
 
-## Automatic Features
+### Environment Variables
 
-- **Daily notes**: Each session auto-creates a timestamped note
-- **Memory injection**: Top 5 most relevant memories loaded into every session's system prompt
-- **Git sync**: Every memory save auto-commits and pushes
-- **Tool nudges**: Agent reminded to save memories during work
-- **URL validation**: Malformed remote URLs auto-fixed on load
+```bash
+# Encryption key (optional)
+OPENCODE_MEMORY_ENCRYPTION_KEY="your-key-here"
+```
 
-## Cross-Everything
+## Architecture
 
-- **Cross-session**: Indexes past opencode sessions
-- **Cross-project**: Memories tagged with project name from git worktree
-- **Cross-machine**: Git sync via private repo. Each edit tracks which machine
-- **Cross-content**: Single `memory_search` queries memories + daily notes + session history
+```
+┌─────────────────┐     ┌──────────────────┐     ┌─────────────────┐
+│  OpenCode Chat  │────▶│  Memory Extractor  │────▶│  Local Index    │
+│   (hooks)       │     │  (regex + compaction)│    │   (JSON)        │
+└─────────────────┘     └──────────────────┘     └─────────────────┘
+                                                        │
+                              ┌───────────────────────┘
+                              ▼
+                        ┌──────────────────┐
+                        │  YAML Files      │
+                        │  (git-tracked)   │
+                        │  memories/*.md   │
+                        └──────────────────┘
+                              │
+                              ▼
+                        ┌──────────────────┐
+                        │  GitHub Repo     │
+                        │  (cross-machine) │
+                        └──────────────────┘
+```
 
-## Setup for Multiple Machines
+## File Structure
 
-See [opencode-config-repo](https://github.com/nutter77-fossmc/opencode-config-repo)
+```
+~/.opencode-memory/
+  .git/                          # GitHub sync (encrypted files)
+  memories/
+    preferences/                   # User preferences
+    technical/                     # Architecture decisions
+    errors/                        # Error patterns & fixes
+    people/                        # Team info
+    notes/                         # Daily notes (auto-generated)
+  .archive/                        # Archived memories
+  .index.json                     # Search index (local only)
+```
+
+## Development
+
+```bash
+# Clone the repo
+git clone https://github.com/nutter77-fossmc/opencode-sync-memory.git
+cd opencode-sync-memory
+
+# Install dependencies
+npm install
+
+# Build
+npm run build
+
+# Run tests
+npm test
+
+# Run tests in watch mode
+npm run test:watch
+```
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Add tests for new functionality
+5. Run `npm test` to ensure everything works
+6. Submit a pull request
 
 ## License
 
 MIT
+
+## Support
+
+- [GitHub Issues](https://github.com/nutter77-fossmc/opencode-sync-memory/issues)
+- [Documentation](https://github.com/nutter77-fossmc/opencode-sync-memory/blob/main/README.md)
+
+## Changelog
+
+### v0.3.0 (2026-06-17)
+- **BREAKING**: Fixed git template literal chains (requires Node.js 18+)
+- Added automatic memory extraction from conversations
+- Added AES-256-GCM encryption for all memories
+- Added memory consolidation (deduplication + stale archiving)
+- Added new tools: `memory_diff`, `memory_export`, `memory_import`, `memory_consolidate`, `memory_encrypt`
+- Added index-based search for faster queries
+- Added per-project configuration support
+- Added GitHub Actions CI/CD
+- Added comprehensive test suite
+
+### v0.2.0
+- Initial release with basic memory tools
+- GitHub sync support
+- Daily notes auto-capture
+
+### v0.1.0
+- Early prototype

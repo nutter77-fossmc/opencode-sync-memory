@@ -3,6 +3,7 @@ import { readFile, writeFile, mkdir, exists } from "./fs";
 import { parseFrontmatter, formatFrontmatter, buildMemoryContent, type MemoryMeta } from "./frontmatter";
 import { getHostname } from "./machine";
 import { join } from "path";
+import { encryptMemoryContent, decryptMemoryContent, isEncrypted } from "./crypto";
 
 export interface MemoryRecord {
   path: string;
@@ -22,7 +23,11 @@ export async function readMemory(relPath: string): Promise<MemoryRecord | null> 
   const fullPath = join(MEMORY_DIR, relPath);
   if (!(await exists(fullPath))) return null;
   const content = await readFile(fullPath, "utf-8");
-  const { fm, body } = parseFrontmatter(content);
+  
+  // Decrypt if encrypted
+  const decryptedContent = decryptMemoryContent(content);
+  
+  const { fm, body } = parseFrontmatter(decryptedContent);
   const preview = body.trim().split("\n").slice(0, 3).join("\n").slice(0, 200);
   return { path: fullPath, relativePath: relPath, fm, body, preview };
 }
@@ -37,6 +42,7 @@ export async function saveMemory(
     project?: string;
     source?: string;
     related?: string[];
+    encrypt?: boolean;
   } = {},
 ): Promise<string> {
   const hostname = getHostname();
@@ -61,9 +67,16 @@ export async function saveMemory(
     updated_by: hostname,
     source: options.source || existing?.fm.source || "manual",
     related: options.related || existing?.fm.related || [],
+    encrypted: options.encrypt || false,
   };
 
-  const content = buildMemoryContent(fm, body);
+  let content = buildMemoryContent(fm, body);
+  
+  // Encrypt if requested
+  if (options.encrypt) {
+    content = encryptMemoryContent(content);
+  }
+
   await mkdir(categoryPath(category), { recursive: true });
   await writeFile(filePath, content, "utf-8");
 
@@ -72,7 +85,11 @@ export async function saveMemory(
 
 async function readMemoryFromPath(filePath: string): Promise<MemoryRecord | null> {
   const content = await readFile(filePath, "utf-8");
-  const { fm, body } = parseFrontmatter(content);
+  
+  // Decrypt if encrypted
+  const decryptedContent = decryptMemoryContent(content);
+  
+  const { fm, body } = parseFrontmatter(decryptedContent);
   const preview = body.trim().split("\n").slice(0, 3).join("\n").slice(0, 200);
   return {
     path: filePath,
